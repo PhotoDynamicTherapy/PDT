@@ -1,32 +1,33 @@
-/* PROJETO DESENVOLVIDO POR:
- *  
- *  UNIVERSIDADE FEDERAL DO PARANÁ
- *  UNIVERSIDADE TECNOLÓGICA FEDERAL DO PARANÁ
- *  INSTITUTO FEDERAL DO PARANÁ
- *  
- *  PINAGEM DO PHOTODYNAMIC THERAPY
+/*
+ * Authors:
+ *          Federal University of Paraná
+ *          Federal Institute of Paraná
+ *          Federal Technological University of Paraná
+ * Date   : June 2, 2022
+ *
+ * PINING OF PHOTODYNAMIC THERAPY
  * 
  * Display LCD I2C: SDA GPIO21
  *                  SCL GPIO22
  * 
- * Potenciômetros: pRed  GPIO15
+ * Potentiometers: pRed  GPIO15
  *                 pGreen  GPIO2
  *                 pBlue GPIO4
  * 
- * pinoTouchStart 13  	//Botão de Click
- * pinoTouchLess 12  	//-
- * pinoTouchMore 14  	//+
+ * pinTouchStart 13  	//Button of Click
+ * pinTouchLess 12  	//-
+ * pinTouchMore 14  	//+
  *  
- * Fita de Led WS1228b: leds GPIO5
+ * Tape of Led WS1228b: leds GPIO5
  * 
- * Sensor de Lux BH1750FVI:  SDA GPIO21
- *                           SCL GPIO22
+ * Lux sensor BH1750FVI:  SDA GPIO21
+ *                        SCL GPIO22
  *                           
  * Buzzer: GPIO23                          
  * 
- */
+*/
 
-/*INCLUSÃO DE BIBLIOTECAS*/
+/*LIBRARIES*/
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
@@ -47,21 +48,21 @@ Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 1234
 
 /*DEFINIÇÃO DE PINOS*/
 
-//Pinos Ajustes Intensidade de cada cor de LED
-#define pRed 15 //Potenciômetro Vermelho
-#define pGreen 2  //Potenciômetro Verde
-#define pBlue 4 //Potenciômetro Azul
+//Pins Adjustments Intensity of each color of LED
+#define pRed 15   //Red Potentiometer
+#define pGreen 2  //Green Potentiometer
+#define pBlue 4   //Blue Potentiometer
 
-#define pLeds 5 //Pino dos Leds
-#define NUMPIXELS 30 // número de leds
+#define pLeds 5      //Pins of Leds
+#define NUMPIXELS 30 //Number of leds
 Adafruit_NeoPixel pixels(NUMPIXELS, pLeds, NEO_GRB + NEO_KHZ800);
 
-//Pinos de Ajuste de Menu
-#define pinoTouchStart 13  //Botão de Click
-#define pinoTouchLess 14  //menos-
-#define pinoTouchMore 12  //mais+
+//Menu Adjustment Pins
+#define pinoTouchStart 13  //Button of Click
+#define pinoTouchLess 14   //Decrement -
+#define pinoTouchMore 12   //Increment +
  
-#define buzzer 23  //buzzer
+#define buzzer 23  //Buzzer
 
 /*CRIAÇÃO E INICIALIZAÇÃO DE VARIÁVEIS*/
 byte ajusteRed = 0; //ajuste da intensidade da cor Vermelha
@@ -84,6 +85,7 @@ unsigned int tempo_inicial = 60;
 byte menu = 0; //0-menu de configuração | 1-exibe operação | 2-Finalizou processo
 int leitura_lux = 0; //leitura do sensor em lux
 double leitura_joule = 0; //leitura do sensor em Joule/cm^2
+double leitura_joule_final = 0;
 unsigned int tempo_decorrido = 0; //tempo em minutos
 
 bool flagI2C = false; //I2C compartilhado entre sensor lux e LCD
@@ -210,7 +212,7 @@ void loop()
  
 void TarefaLeAjustes( void * parameter)
 {
-  while(1)
+  while(menu == 0)
   { 
     delay(300);
     Serial.println("Task 1 - Read settings.");
@@ -218,27 +220,49 @@ void TarefaLeAjustes( void * parameter)
     int aux_ajusteGreen = analogRead(pGreen);   //ajuste do Led Verde
     int aux_ajusteBlue = analogRead(pBlue);     //ajuste do Led Azul
 
+    if((aux_ajusteRed<=0)||(aux_ajusteRed>10000))aux_ajusteRed=0;
+    else if(aux_ajusteRed>=4095)aux_ajusteRed=4095;
+    if((aux_ajusteGreen<=0)||(aux_ajusteGreen>10000))aux_ajusteGreen=0;
+    else if(aux_ajusteGreen>=4095)aux_ajusteGreen=4095;
+    if((aux_ajusteBlue<=0)||(aux_ajusteBlue>10000))aux_ajusteBlue=0;
+    else if(aux_ajusteBlue>=4095)aux_ajusteBlue=4095;
+        
     ajusteRed = map(aux_ajusteRed, 4095, 0, 0, 255); //ajuste o intervalo para 0-255
-    if(ajusteRed<0)ajusteRed=0;if(ajusteRed>255)ajusteRed=255;
+    if((ajusteRed<=0)||(ajusteRed>10000))ajusteRed=0;
+    else if(ajusteRed>=255)ajusteRed=255;
+    
     ajusteGreen = map(aux_ajusteGreen, 4095, 0, 0, 255);   //ajuste o intervalo para 0-255
-    if(ajusteGreen<0)ajusteGreen=0;if(ajusteGreen>255)ajusteGreen=255;
+    if((ajusteGreen<=0)||(ajusteGreen>10000))ajusteGreen=0;
+    else if(ajusteGreen>=255)ajusteGreen=255;
+    
     ajusteBlue = map(aux_ajusteBlue, 4095, 0, 0, 255);     //ajuste o intervalo para 0-255
-    if(ajusteBlue<0)ajusteBlue=0;if(ajusteBlue>255)ajusteBlue=255;
+    if((ajusteBlue<=0)||(ajusteBlue>10000))ajusteBlue=0;
+    else if(ajusteBlue>=255)ajusteBlue=255;
     
       if(touchRead(pinoTouchMore) < 20)
       {
         Serial.print("Time: "); 
         Serial.println(tempo); 
-        delay(200);
+        delay(100);
         if(tempo<1440)tempo++;
+        delay(400);
+       if(touchRead(pinoTouchMore) < 20)
+        {
+           if(tempo<1430)tempo=tempo+9;
+        }
      }
       if(touchRead(pinoTouchLess) < 20)
       {
         Serial.print("Time: "); 
         Serial.println(tempo); 
-        delay(200);
+        delay(100);
         if(tempo>1)tempo--;
-        
+        delay(400);
+      if(touchRead(pinoTouchLess) < 20)
+      {
+        if(tempo>=10)tempo=tempo-9;
+        if(tempo>10000)tempo=0;      
+      }
      }
       if(touchRead(pinoTouchStart) < 10)
       {
@@ -265,7 +289,7 @@ void TarefaDisplayLCD( void * parameter)
 {
   while(1)
   {
-    delay(500);
+    delay(300);
     Serial.println("Task 2 - Display LCD");
     while(flagI2C == true){delay(5);} //se I2C está em uso aguarda
     flagI2C = true;
@@ -319,13 +343,21 @@ void TarefaDisplayLCD( void * parameter)
     }
     else if(menu==2) //exibe processo concluído
     {
+      
       lcd.begin();
       lcd.setCursor(0,0);
       lcd.print("Finished.");
+      delay(3000);
 
+      lcd.begin();
+      lcd.setCursor(0,0);
+      lcd.print("Av:");
+      lcd.print(leitura_joule_final);
+      lcd.print("J/cm2");
+      
       lcd.setCursor(0,1);
-      lcd.print("Tot:");
-      double aux = leitura_joule*tempo_inicial*60/1000;
+      lcd.print("Acc:");
+      double aux = leitura_joule_final*tempo_inicial*60/1000;
       lcd.print(aux);
       lcd.print("kJ/cm2");
 
@@ -372,6 +404,9 @@ void TarefaLeLux( void * parameter)
     leitura_joule = leitura_joule *683; //agora temos Watts/cm^2 ou J/cm^2.s
     Serial.print(leitura_joule);
     Serial.println(" J/cm^2");
+    
+    if(leitura_joule > 5)leitura_joule_final = leitura_joule; //se ainda estiver ligado atribui a leitura para cálculo final
+    
     flagI2C = false;
     delay(1000);
     if(menu==2)
@@ -430,13 +465,13 @@ void TarefaAtualizaLeds( void * parameter)
         operaGreen = ajusteGreen;
         operaBlue = ajusteBlue;
       //}
-      delay(300);
+      delay(200);
     }
     else if(menu == 1) //menu 1 - operação com cor dos leds fixa
     {
        for(int i=0; i<NUMPIXELS; i++)
        {
-        pixels.setPixelColor(i, pixels.Color(operaGreen, operaBlue, operaRed));    
+        pixels.setPixelColor(i, pixels.Color(operaBlue, operaRed, operaGreen));    
         pixels.show();   // atualiza a cor dos leds
         delay(20);
        }
