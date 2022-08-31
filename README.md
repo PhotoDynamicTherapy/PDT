@@ -1,14 +1,14 @@
-# PDT: TO COMPILE AND LOAD THE PROGRAM #
-########################################
+# PDT: TO COMPILE AND LOAD THE PROGRAM
+
 ARDUINO IDE SETTINGS FOR PDT:
 
 1st. Install the libraries below (Sketch Menu, Add Library, Add .zip library)
-# Note - search web browsers for the libraries below:
-## Adafruit_NeoPixel-1.10.4
-## Adafruit_Sensor_Lab-0.7.1
-## Adafruit_TSL2561-1.0.3
-## Adafruit_Unified_Sensor-1.1.5
-## LiquidCrystal_I2C
+Note - search web browsers for the libraries below:
+* Adafruit_NeoPixel-1.10.4
+* Adafruit_Sensor_Lab-0.7.1
+* Adafruit_TSL2561-1.0.3
+* Adafruit_Unified_Sensor-1.1.5
+* LiquidCrystal_I2C
 
 2nd. Choose ESP32 Dev Module board (Tools Menu)
 
