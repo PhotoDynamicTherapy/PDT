@@ -14,9 +14,9 @@
  *                 pGreen  GPIO2
  *                 pBlue GPIO4
  * 
- * pinTouchStart 13  	//Button of Click
- * pinTouchLess 12  	//-
- * pinTouchMore 14  	//+
+ * pinTouchStart 13    //Button of Click
+ * pinTouchLess 12    //-
+ * pinTouchMore 14    //+
  *  
  * Tape of Led WS1228b: leds GPIO5
  * 
@@ -26,7 +26,7 @@
  * Buzzer: GPIO23   
 */
 
-/*LIBRARIES*/
+//LIBRARIES/
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
@@ -34,7 +34,7 @@
 #include <Adafruit_TSL2561_U.h>
 
 #include <Adafruit_NeoPixel.h>
-#ifdef __AVR__
+#ifdef _AVR_
 #include <avr/power.h>     // Required for 16 MHz Adafruit Trinket
 #endif
 
@@ -45,7 +45,7 @@ void configureSensor();
 
 Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_FLOAT, 12345);
 
-/*PIN DEFINITION*/
+//PIN DEFINITION/
 
 //Pins Adjustments Intensity of each color of LED
 #define pRed 15   //Red Potentiometer
@@ -62,13 +62,13 @@ Adafruit_NeoPixel pixels(NUMPIXELS, pLeds, NEO_GRB + NEO_KHZ800);
 #define pinoTouchMore 12   //Increment + 
 #define buzzer 23          //Buzzer
 
-/*CREATION AND INITIALIZATION OF VARIABLES*/
-byte ajusteRed = 0;    //Red color intensity adjustment
-byte ajusteGreen = 0;  //Green color intensity adjustment
-byte ajusteBlue = 0;   //Blue color intensity adjustment
-byte operaRed = 0;     //Red color operating intensity
-byte operaGreen = 0;   //Green color operating intensity
-byte operaBlue = 0;    //Blue color operating intensity
+//CREATION AND INITIALIZATION OF VARIABLES/
+byte setRed = 0;    //Red color intensity adjustment
+byte setGreen = 0;  //Green color intensity adjustment
+byte setBlue = 0;   //Blue color intensity adjustment
+byte startRed = 0;     //Red color operating intensity
+byte startGreen = 0;   //Green color operating intensity
+byte startBlue = 0;    //Blue color operating intensity
 
 
 //rotary encoder variables
@@ -78,21 +78,24 @@ int verificaGiro;        //stores reading from rotating CLK pin
 boolean verificaSentido; //checks the encoder clockwise/counterclockwise rotation direction
 
 //configuration and operation variables
-unsigned int tempo = 61;            //initial value of the time that appears on the display
-unsigned int tempo_inicial = 60;    //process start time
+unsigned int count_time = 61;            //initial value of the time that appears on the display
+unsigned int total_count_time = 60;    //process start time
 byte menu = 0;                      //0-menu configuration | 1-display operation | 2-Finished process
-int leitura_lux = 0;                //sensor reading in lux
-double leitura_joule = 0;           //sensor reading in Joule/cm^2
-double leitura_joule_final = 0;     //final reading in Joule/cm^2
-unsigned int tempo_decorrido = 0;   //time in minutes
+int measured_lux = 0;                //sensor reading in lux
+double irradiance = 0;           //sensor reading in Joule/cm^2
+double irradiance_final = 0;     //final reading in Joule/cm^2
+unsigned int time_left = 0;   //time in minutes
 bool flagI2C = false;               //I2C shared between lux sensor and LCD
-bool flagTempo = LOW;               //1 running, 0 off
+bool flagcount_time = LOW;               //1 running, 0 off
+
+double irradiated_area = 660; //660 cm² of area irradiated on botom of box
+double LEDpower = 9; //Power of LED (0W to 9W)
 
 //Start the task queue
 QueueHandle_t fila;
 int tamanhodafila = 50;
 
-/*SETTINGS*/
+//SETTINGS/
 void setup() 
 { 
   //starts Serial Communication
@@ -117,7 +120,7 @@ void setup()
   pinMode(pBlue, INPUT);
 
   //Configure and initialize LEDs
-  #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
+  #if defined(_AVR_ATtiny85_) && (F_CPU == 16000000)
     clock_prescale_set(clock_div_1);
   #endif
   pixels.begin();
@@ -142,8 +145,8 @@ void setup()
 
    xTaskCreatePinnedToCore
   (
-    TarefaLeLux,      /* Task or Role  */
-    "TarefaLeLux",    /* Task or Role Name  */
+    TaskReadLux,      /* Task or Role  */
+    "TaskReadLux",    /* Task or Role Name  */
     10000,            /* Stack Size  */
     NULL,             /* Input Parameter  */
     2,                /* Task Priority  */
@@ -153,8 +156,8 @@ void setup()
 
    xTaskCreatePinnedToCore
   (
-    TarefaContaTempo,  /* Task or Role  */
-    "TarefaContaTempo",/* Task or Role Name  */
+    TaskCountTime,  /* Task or Role  */
+    "TaskCountTime",/* Task or Role Name  */
     10000,             /* Stack Size  */
     NULL,              /* Input Parameter  */
     2,                 /* Task Priority  */
@@ -164,8 +167,8 @@ void setup()
   
   xTaskCreatePinnedToCore
   (
-    TarefaLeAjustes,  /* Task or Role  */
-    "TarefaLeAjustes",/* Task or Role Name  */
+    TaskReadSettings,  /* Task or Role  */
+    "TaskReadSettings",/* Task or Role Name  */
     10000,            /* Stack Size  */
     NULL,             /* Input Parameter  */
     2,                /* Task Priority  */
@@ -175,8 +178,8 @@ void setup()
 
   xTaskCreatePinnedToCore
   (
-    TarefaDisplayLCD,  /* Task or Role  */
-    "TarefaDisplayLCD",/* Task or Role Name  */
+    TaskDisplayLCD,  /* Task or Role  */
+    "TaskDisplayLCD",/* Task or Role Name  */
     10000,             /* Stack Size  */
     NULL,              /* Input Parameter  */
     2,                 /* Task Priority  */
@@ -186,8 +189,8 @@ void setup()
 
   xTaskCreatePinnedToCore
   (
-    TarefaAtualizaLeds,  /* Task or Role  */
-    "TarefaAtualizaLeds",/* Task or Role Name  */
+    TaskLedsRefresh,  /* Task or Role  */
+    "TaskLedsRefresh",/* Task or Role Name  */
     10000,               /* Stack Size  */
     NULL,                /* Input Parameter  */
     2,                   /* Task Priority  */
@@ -204,81 +207,87 @@ void loop()
     Serial.println("Running Loop.");
 }
  
-void TarefaLeAjustes( void * parameter)
+void TaskReadSettings( void * parameter)
 {
   while(menu == 0)
   { 
     delay(300);
     Serial.println("Task 1 - Read settings.");
-    int aux_ajusteRed = analogRead(pRed);       //Red LED adjustment
-    int aux_ajusteGreen = analogRead(pGreen);   //Green LED adjustment
-    int aux_ajusteBlue = analogRead(pBlue);     //Blue LED adjustment
+    int aux_setRed = analogRead(pRed);       //Red LED adjustment
+    int aux_setGreen = analogRead(pGreen);   //Green LED adjustment
+    int aux_setBlue = analogRead(pBlue);     //Blue LED adjustment
 
-    if((aux_ajusteRed<=0)||(aux_ajusteRed>10000))aux_ajusteRed=0;
-    else if(aux_ajusteRed>=4095)aux_ajusteRed=4095;
-    if((aux_ajusteGreen<=0)||(aux_ajusteGreen>10000))aux_ajusteGreen=0;
-    else if(aux_ajusteGreen>=4095)aux_ajusteGreen=4095;
-    if((aux_ajusteBlue<=0)||(aux_ajusteBlue>10000))aux_ajusteBlue=0;
-    else if(aux_ajusteBlue>=4095)aux_ajusteBlue=4095;
+    if((aux_setRed<=0)||(aux_setRed>10000))aux_setRed=0;
+    else if(aux_setRed>=4095)aux_setRed=4095;
+    if((aux_setGreen<=0)||(aux_setGreen>10000))aux_setGreen=0;
+    else if(aux_setGreen>=4095)aux_setGreen=4095;
+    if((aux_setBlue<=0)||(aux_setBlue>10000))aux_setBlue=0;
+    else if(aux_setBlue>=4095)aux_setBlue=4095;
         
-    ajusteRed = map(aux_ajusteRed, 4095, 0, 0, 255);       //set the range to 0-255
-    if((ajusteRed<=0)||(ajusteRed>10000))ajusteRed=0;
-    else if(ajusteRed>=255)ajusteRed=255;
+    setRed = map(aux_setRed, 4095, 0, 0, 255);       //set the range to 0-255
+    if((setRed<=0)||(setRed>10000))setRed=0;
+    else if(setRed>=255)setRed=255;
     
-    ajusteGreen = map(aux_ajusteGreen, 4095, 0, 0, 255);   //set the range to 0-255
-    if((ajusteGreen<=0)||(ajusteGreen>10000))ajusteGreen=0;
-    else if(ajusteGreen>=255)ajusteGreen=255;
+    setGreen = map(aux_setGreen, 4095, 0, 0, 255);   //set the range to 0-255
+    if((setGreen<=0)||(setGreen>10000))setGreen=0;
+    else if(setGreen>=255)setGreen=255;
     
-    ajusteBlue = map(aux_ajusteBlue, 4095, 0, 0, 255);     //set the range to 0-255
-    if((ajusteBlue<=0)||(ajusteBlue>10000))ajusteBlue=0;
-    else if(ajusteBlue>=255)ajusteBlue=255;
+    setBlue = map(aux_setBlue, 4095, 0, 0, 255);     //set the range to 0-255
+    if((setBlue<=0)||(setBlue>10000))setBlue=0;
+    else if(setBlue>=255)setBlue=255;
+
+    LEDpower = (setRed + setGreen + setBlue)*9/765; //(0~9W) LED Power based on RGB Settings
     
       if(touchRead(pinoTouchMore) < 20)
       {
         Serial.print("Time: "); 
-        Serial.println(tempo); 
+        Serial.println(count_time); 
         delay(100);
-        if(tempo<1440)tempo++;
+        if(count_time<1440)count_time++;
         delay(400);
        if(touchRead(pinoTouchMore) < 20)
         {
-           if(tempo<1430)tempo=tempo+9;
+           if(count_time<1430)count_time=count_time+9;
         }
      }
       if(touchRead(pinoTouchLess) < 20)
       {
         Serial.print("Time: "); 
-        Serial.println(tempo); 
+        Serial.println(count_time); 
         delay(100);
-        if(tempo>1)tempo--;
+        if(count_time>1)count_time--;
         delay(400);
       if(touchRead(pinoTouchLess) < 20)
       {
-        if(tempo>=10)tempo=tempo-9;
-        if(tempo>10000)tempo=0;      
+        if(count_time>=10)count_time=count_time-9;
+        if(count_time>10000)count_time=0;      
       }
      }
-      if(touchRead(pinoTouchStart) < 10)
+      int cont = 0;
+      while(touchRead(pinoTouchStart) < 20)
       {
-        delay(300);
-        if(touchRead(pinoTouchStart) < 10){
-        Serial.print("Start button pressed."); 
-        menu = 1;
-        digitalWrite(buzzer,HIGH);
-        delay(1500);
-        digitalWrite(buzzer,LOW);
-        delay(500);
-        }     
+        delay(100);
+        cont++;
+        if(cont > 25)
+        {
+          Serial.print("Start button pressed."); 
+          menu = 1;
+          digitalWrite(buzzer,HIGH);
+          delay(1500);
+          digitalWrite(buzzer,LOW);
+          delay(500);
+       }
+             
      }
  
-  delay(5);
+    delay(5);
   }
    
   /* Delete the current task */ 
   vTaskDelete( NULL ); 
 }
 
-void TarefaDisplayLCD( void * parameter)
+void TaskDisplayLCD( void * parameter)
 {
   while(1)
   {
@@ -295,22 +304,26 @@ void TarefaDisplayLCD( void * parameter)
       //delay(10);
       lcd.setCursor(0,0);
       lcd.print("R");
-      lcd.print(ajusteRed);
+      lcd.print(setRed);
       
       //delay(10);
       lcd.setCursor(6,0);
       lcd.print("G");
-      lcd.print(ajusteGreen);
+      lcd.print(setGreen);
       
       //delay(10);
       lcd.setCursor(12,0);
       lcd.print("B");
-      lcd.print(ajusteBlue);      
+      lcd.print(setBlue);      
       
       lcd.setCursor(0,1);
-      lcd.print("Time:");
-      lcd.print(tempo);
-      lcd.print("min");
+      lcd.print("T: ");
+      lcd.print(count_time);
+      lcd.print("min ");
+
+      lcd.print("P:");
+      lcd.print(LEDpower);
+      lcd.print("W");
     }
     else if(menu==1) //display operation screen
     {      
@@ -320,15 +333,18 @@ void TarefaDisplayLCD( void * parameter)
       
       //delay(10);
       lcd.setCursor(0,0);
-      lcd.print(leitura_lux);
+      lcd.print(measured_lux);
       lcd.print(" lx ");
-      lcd.print("T:");
-      lcd.print(tempo_decorrido);
+      lcd.print("TL:");
+      lcd.print(time_left);
       lcd.print("'");
 
       lcd.setCursor(0,1);
-      lcd.print(leitura_joule);
-      lcd.print(" J/cm2");
+      lcd.print("I:"); //Instantaneous: Irradiance
+      
+      lcd.print(irradiance);
+      lcd.print("mJ/cm2s");
+    
       delay(5000);
     }
     else if(menu==2) //display completed process
@@ -338,18 +354,19 @@ void TarefaDisplayLCD( void * parameter)
       lcd.print("Finished.");
       delay(3000);
 
-      lcd.begin();
-      lcd.setCursor(0,0);
-      lcd.print("Av:");
-      lcd.print(leitura_joule_final);
-      lcd.print("J/cm2");
       
-      lcd.setCursor(0,1);
-      lcd.print("Acc:");
-      double aux = leitura_joule_final*tempo_inicial*60/1000;
-      lcd.print(aux);
-      lcd.print("kJ/cm2");
+        lcd.begin();
+        lcd.setCursor(0,0);
+        lcd.print("I:"); //Instantaneous: Irradiance
+        lcd.print(irradiance_final);
+        lcd.print("mJ/cm2s");
 
+        lcd.setCursor(0,1);
+        lcd.print("F:"); //Total Final: Fluence
+        double fluence = irradiance_final*total_count_time*60/1000;
+        lcd.print(fluence);
+        lcd.print("J/cm2");
+          
       while(1){delay(1000);}
     }
 
@@ -359,7 +376,7 @@ void TarefaDisplayLCD( void * parameter)
   vTaskDelete( NULL ); 
 }
 
-void TarefaLeLux( void * parameter)
+void TaskReadLux( void * parameter)
 {
   while(1)
   {
@@ -385,13 +402,12 @@ void TarefaLeLux( void * parameter)
       Serial.println("Sensor overload.");
     }
       
-    leitura_lux = event.light;                 //measurement in lux or lumens/m^2    
-    leitura_joule = double(leitura_lux)/10000; //now we have lumens/com^2
-    leitura_joule = leitura_joule *683;        //now we have Watts/cm^2 or J/cm^2.s
-    Serial.print(leitura_joule);
-    Serial.println(" J/cm^2");
+    measured_lux = event.light;             //measurement in lux
+    irradiance = LEDpower*1000/irradiated_area;  //irradiance in mW/cm² or mJ/(s.cm²)
+    Serial.print(irradiance);
+    Serial.println(" mJ/cm^2");
     
-    if(leitura_joule > 5)leitura_joule_final = leitura_joule; //if it is still on, it assigns the reading to the final calculation
+    if(irradiance > 0.05)irradiance_final = irradiance; //if it is still on, it assigns the reading to the final calculation
     
     flagI2C = false;
     delay(1000);
@@ -403,23 +419,23 @@ void TarefaLeLux( void * parameter)
   vTaskDelete(NULL);
 }
 
-void TarefaContaTempo( void * parameter)
+void TaskCountTime( void * parameter)
 {
   while(1)
   {
     Serial.println("Task 4 - Time Account");
     if(menu==0) //menu 0 - configures colors and time
     {
-      tempo_decorrido=tempo;
-      tempo_inicial = tempo;
+      time_left=count_time;
+      total_count_time = count_time;
       delay(500);
     }
     else if (menu==1) //menu 1 - countdown timer operation
     {
       delay(60000);
-      tempo_decorrido--;
-      if(tempo_decorrido<=0)
-      {tempo_decorrido=0;
+      time_left--;
+      if(time_left<=0)
+      {time_left=0;
         menu = 2; //ends the process
         for(int i=0;i<4;i++)
         {
@@ -435,7 +451,7 @@ void TarefaContaTempo( void * parameter)
   vTaskDelete(NULL);
 }
 
-void TarefaAtualizaLeds( void * parameter)
+void TaskLedsRefresh( void * parameter)
 {
   while(1)
   {
@@ -444,12 +460,12 @@ void TarefaAtualizaLeds( void * parameter)
     {
        pixels.clear(); //turn off the LEDs
        /*for(int i=0; i<NUMPIXELS; i++) {
-        pixels.setPixelColor(i, pixels.Color(ajusteRed, ajusteGreen, ajusteBlue));    
+        pixels.setPixelColor(i, pixels.Color(setRed, setGreen, setBlue));    
         pixels.show();   // update the color of the leds
         delay(30);*/
-        operaRed = ajusteRed;
-        operaGreen = ajusteGreen;
-        operaBlue = ajusteBlue;
+        startRed = setRed;
+        startGreen = setGreen;
+        startBlue = setBlue;
       //}
       delay(200);
     }
@@ -457,7 +473,7 @@ void TarefaAtualizaLeds( void * parameter)
     {
        for(int i=0; i<NUMPIXELS; i++)
        {
-        pixels.setPixelColor(i, pixels.Color(operaBlue, operaRed, operaGreen));    
+        pixels.setPixelColor(i, pixels.Color(startRed, startGreen, startBlue));    
         pixels.show();   // update the color of the leds
         delay(20);
        }
